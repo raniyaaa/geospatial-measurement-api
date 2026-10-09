@@ -1,0 +1,28 @@
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: "sqlite:////app/data/geospatial.db"
+    volumes:
+      - db_data:/app/data
+      - uploads_data:/app/uploads
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    ports:
+      - "8501:8501"
+    environment:
+      API_BASE_URL: "http://backend:8000"
+    depends_on:
+      - backend
+
+volumes:
+  db_data:
+  uploads_data:

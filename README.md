@@ -1,6 +1,6 @@
 # Geospatial File Measurement API
 
-A geospatial file processing application built with FastAPI and Streamlit. It accepts KML files and Shapefile ZIP archives, extracts their features, calculates geometric measurements, and displays the results through a web interface.
+A geospatial file processing application built with FastAPI and Streamlit, **dockerized using Docker Compose**. It accepts KML files and Shapefile ZIP archives, extracts their features, calculates geometric measurements, and displays the results through a web interface.
 
 ## Features
 
@@ -9,12 +9,14 @@ A geospatial file processing application built with FastAPI and Streamlit. It ac
 - Extract geometry types and feature properties.
 - Calculate Polygon area and LineString length.
 - Handle Point geometries without calculating area or length.
-- Transform geographic coordinates into a projected coordinate reference system (CRS) before calculating measurements.
+- Transform geographic coordinates into a suitable projected coordinate reference system (CRS) before calculating measurements.
 - Store file metadata and feature measurements using SQLite and SQLAlchemy.
 - Retrieve file details and measurement results through API endpoints.
 - View file metadata and measurement results through a Streamlit interface.
 - Handle invalid uploads, processing failures, and nonexistent file IDs.
-- Run automated tests using Pytest.
+- Run automated tests using pytest.
+- Run the backend and frontend in separate Docker containers using Docker Compose.
+- Preserve the SQLite database and uploaded files using Docker named volumes.
 
 ## Tech Stack
 
@@ -25,6 +27,7 @@ A geospatial file processing application built with FastAPI and Streamlit. It ac
 - **Database:** SQLite, SQLAlchemy
 - **Validation:** Pydantic
 - **Testing:** Pytest, FastAPI TestClient, HTTPX
+- **Containerization:** Docker, Docker Compose
 
 ## Project Structure
 
@@ -46,12 +49,17 @@ geospatial-measurement-api/
 │   │   └── file_validation.py
 │   └── main.py
 ├── frontend/
-│   └── app.py
+│   ├── app.py
+│   ├── Dockerfile
+│   └── requirements.txt
 ├── tests/
 │   └── test_files.py
 ├── uploads/
-├── requirements.txt
+├── Dockerfile
+├── docker-compose.yml
+├── .dockerignore
 ├── .gitignore
+├── requirements.txt
 └── README.md
 ```
 
@@ -64,6 +72,7 @@ geospatial-measurement-api/
 - **Utilities (`app/utils/`):** Validate uploaded Shapefile ZIP archives.
 - **Frontend (`frontend/`):** Provides a Streamlit interface for uploading files and viewing metadata and measurements.
 - **Tests (`tests/`):** Verify API behavior and geometry measurement calculations.
+- **Docker configuration:** Defines the backend and frontend images, container networking, and persistent storage.
 
 ## Setup and Installation
 
@@ -112,7 +121,7 @@ Interactive API documentation is available at:
 
 `http://127.0.0.1:8000/docs`
 
-## Running the Frontend
+## Running the Frontend Locally
 
 The application includes a Streamlit interface for uploading geospatial files and viewing file details and measurement results.
 
@@ -130,7 +139,82 @@ Streamlit will display a local URL, usually:
 
 Open that URL in your browser.
 
-The frontend communicates with the FastAPI backend at `http://127.0.0.1:8000`. Ensure the backend is running before uploading files.
+By default, the frontend communicates with the FastAPI backend at `http://127.0.0.1:8000`. The backend URL can be configured using the `API_BASE_URL` environment variable.
+
+For example, in PowerShell:
+
+```powershell
+$env:API_BASE_URL = "http://127.0.0.1:8000"
+streamlit run frontend/app.py
+```
+
+Ensure the backend is running before uploading files.
+
+## Running with Docker
+
+### Prerequisites
+
+- Docker Desktop installed and running
+- Docker Compose available through the Docker CLI
+
+### Build the images
+
+From the project root, run:
+
+```bash
+docker compose build
+```
+
+This builds separate Docker images for the FastAPI backend and Streamlit frontend.
+
+### Start the application
+
+```bash
+docker compose up
+```
+
+Docker Compose starts both services and connects them through an internal Docker network.
+
+To run the containers in the background instead, use:
+
+```bash
+docker compose up -d
+```
+
+### Access the application
+
+- **Streamlit frontend:** http://localhost:8501
+- **FastAPI Swagger documentation:** http://localhost:8000/docs
+
+### Container networking
+
+The frontend uses the `API_BASE_URL` environment variable to determine the backend address.
+
+- **Local development:** `http://127.0.0.1:8000`
+- **Docker Compose:** `http://backend:8000`
+
+Inside Docker Compose, `backend` is the service name of the FastAPI container. Docker's internal network allows the frontend to communicate with the backend using this service name.
+
+The frontend container exposes port `8501`, and the backend container exposes port `8000`. The port mappings make both services accessible from the host machine.
+
+### Stop the application
+
+If running in the foreground, press `Ctrl + C` in the terminal running Docker Compose.
+
+To stop and remove the containers and Compose network, use:
+
+```bash
+docker compose down
+```
+
+### Persistent storage
+
+Docker Compose uses named volumes to preserve the SQLite database and uploaded files:
+
+- `db_data`: stores the SQLite database at `/app/data/geospatial.db`.
+- `uploads_data`: stores uploaded geospatial files at `/app/uploads`.
+
+Stopping or recreating the containers does not normally delete these named volumes. Avoid using `docker compose down -v` unless you intentionally want to remove the volumes and their data.
 
 ### Frontend Features
 
@@ -166,7 +250,11 @@ curl -X POST "http://127.0.0.1:8000/api/files/" \
 }
 ```
 
-The actual ID, content type, and stored filename depend on the uploaded file and request. Use the returned ID to retrieve the file metadata and measurements.
+The actual ID, content type, and stored filename depend on the uploaded file and request. The returned `saved_to` value identifies the server-side storage path; it is not a public download URL.
+
+Use the returned ID to retrieve the file metadata and measurements.
+
+If file validation or processing fails, the API returns an HTTP error response. Processing failures may leave a file metadata record with a `failed` status and an associated error message.
 
 ### 2. Retrieve file details
 
@@ -245,6 +333,8 @@ The API returns appropriate HTTP errors for:
 8. Store file metadata and feature results in SQLite.
 9. Return the file identifier and upload information.
 
+Successful uploads return the upload information. If processing fails, the API returns an error response and records the failure status and error message when possible.
+
 ### Measurement Calculation
 
 - **Point:** No area or length is calculated.
@@ -275,9 +365,11 @@ The service checks the input CRS before measurement calculations:
 3. The geometries are transformed using `to_crs()`.
 4. Area and length are calculated using the projected geometries.
 
-For typical UTM projections, Polygon area is expressed in square metres and LineString length in metres.
+For suitable projected coordinate systems such as UTM, Polygon area is expressed in square metres and LineString length in metres.
 
 The source CRS is retained as file metadata, while the transformed geometries are used for measurement calculations.
+
+UTM estimation is appropriate for many datasets within a suitable projection zone. Very large geometries or geometries spanning multiple projection zones may require a different projection strategy.
 
 ## Database Design
 
@@ -293,6 +385,8 @@ Stores extracted feature information, including its parent file ID, feature inde
 
 Uploaded file contents are stored on the filesystem. SQLite stores the associated metadata and calculated results.
 
+When running with Docker Compose, the database and uploaded files are stored in separate named volumes to preserve data across container recreation.
+
 ## Design Decisions
 
 - **FastAPI:** Chosen to provide a lightweight REST API with automatic OpenAPI documentation and straightforward endpoint development.
@@ -302,6 +396,7 @@ Uploaded file contents are stored on the filesystem. SQLite stores the associate
 - **GeoPandas, Shapely, and PyProj:** Handle geospatial file reading, geometry operations, CRS transformations, and measurements.
 - **Filesystem storage instead of database binary storage:** Uploaded files are stored separately from their metadata and measurement results, avoiding the need to store file contents in SQLite.
 - **Synchronous processing instead of background jobs:** Files are processed during the upload request, keeping the architecture straightforward for this assignment. Background workers would be more appropriate for large files or long-running workloads.
+- **Docker Compose:** Runs the backend and frontend in separate containers, provides internal service networking, and manages persistent storage volumes.
 
 ## Running Tests
 
@@ -329,9 +424,8 @@ The tests cover:
 - Introduce background processing for large uploads.
 - Add pagination for files containing many features.
 - Expand automated tests for missing CRS, empty files, malformed archives, and additional geometry types.
-- Make the backend URL configurable for different deployment environments.
 - Consider a spatial database such as PostGIS if advanced spatial queries become necessary.
 
 ## Learning Outcomes
 
-This project provided practical experience with REST API development, file validation, geospatial data processing, CRS transformations, database persistence, frontend-backend communication, error handling, and automated testing.
+This project provided practical experience with REST API development, file validation, geospatial data processing, CRS transformations, database persistence, frontend-backend communication, error handling, automated testing, containerization, and persistent storage using Docker Compose.
