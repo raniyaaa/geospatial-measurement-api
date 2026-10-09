@@ -1,6 +1,6 @@
 # Geospatial File Measurement API
 
-A backend API built with FastAPI that accepts geospatial files in KML or Shapefile ZIP format, extracts their features, calculates geometric measurements, and exposes the results through REST endpoints.
+A geospatial file processing application built with FastAPI and Streamlit. It accepts KML files and Shapefile ZIP archives, extracts their features, calculates geometric measurements, and displays the results through a web interface.
 
 ## Features
 
@@ -12,12 +12,15 @@ A backend API built with FastAPI that accepts geospatial files in KML or Shapefi
 - Transform geographic coordinates into a projected coordinate reference system (CRS) before calculating measurements.
 - Store file metadata and feature measurements using SQLite and SQLAlchemy.
 - Retrieve file details and measurement results through API endpoints.
+- View file metadata and measurement results through a Streamlit interface.
 - Handle invalid uploads, processing failures, and nonexistent file IDs.
 - Run automated tests using Pytest.
 
 ## Tech Stack
 
-- **API:** FastAPI
+- **Backend API:** FastAPI
+- **Frontend:** Streamlit
+- **HTTP requests:** Requests
 - **Geospatial processing:** GeoPandas, Shapely, PyProj
 - **Database:** SQLite, SQLAlchemy
 - **Validation:** Pydantic
@@ -42,6 +45,8 @@ geospatial-measurement-api/
 │   ├── utils/
 │   │   └── file_validation.py
 │   └── main.py
+├── frontend/
+│   └── app.py
 ├── tests/
 │   └── test_files.py
 ├── uploads/
@@ -57,16 +62,15 @@ geospatial-measurement-api/
 - **Models (`app/models/`):** Define the database connection and SQLAlchemy models for files and features.
 - **Schemas (`app/schemas/`):** Define Pydantic response schemas.
 - **Utilities (`app/utils/`):** Validate uploaded Shapefile ZIP archives.
+- **Frontend (`frontend/`):** Provides a Streamlit interface for uploading files and viewing metadata and measurements.
 - **Tests (`tests/`):** Verify API behavior and geometry measurement calculations.
 
 ## Setup and Installation
 
 ### 1. Clone the repository
 
-Replace the placeholder below with the URL of your public GitHub repository.
-
 ```bash
-git clone <YOUR_GITHUB_REPOSITORY_URL>
+git clone https://github.com/raniyaaa/geospatial-measurement-api.git
 cd geospatial-measurement-api
 ```
 
@@ -92,7 +96,9 @@ source .venv/bin/activate
 python -m pip install -r requirements.txt
 ```
 
-### 4. Start the API
+### 4. Start the backend API
+
+Run the following command from the project root:
 
 ```bash
 uvicorn app.main:app --reload
@@ -105,6 +111,34 @@ The API will be available at:
 Interactive API documentation is available at:
 
 `http://127.0.0.1:8000/docs`
+
+## Running the Frontend
+
+The application includes a Streamlit interface for uploading geospatial files and viewing file details and measurement results.
+
+Keep the FastAPI backend running in the first terminal. Open a second terminal, navigate to the project root, and activate the virtual environment if necessary.
+
+Run:
+
+```bash
+streamlit run frontend/app.py
+```
+
+Streamlit will display a local URL, usually:
+
+`http://localhost:8501`
+
+Open that URL in your browser.
+
+The frontend communicates with the FastAPI backend at `http://127.0.0.1:8000`. Ensure the backend is running before uploading files.
+
+### Frontend Features
+
+- Upload KML files and Shapefile ZIP archives.
+- View file ID, filename, feature count, processing status, and source CRS.
+- View geometry types and measurements in a table.
+- Display Polygon area in square metres (m²) and LineString length in metres (m).
+- Show error messages when uploads or API requests fail.
 
 ## API Endpoints
 
@@ -218,6 +252,18 @@ The API returns appropriate HTTP errors for:
 - **Polygon:** Calculate area after projecting geographic coordinates when necessary.
 - **Other geometry types:** Return no area or length measurement.
 
+### Frontend and Backend Communication
+
+The Streamlit frontend sends HTTP requests to the FastAPI backend.
+
+1. The user selects a geospatial file in the frontend.
+2. Streamlit sends the file to `POST /api/files/`.
+3. FastAPI validates and processes the file, calculates measurements, and stores the results.
+4. Streamlit uses the returned file ID to request file details and measurements.
+5. The frontend displays the metadata and formatted measurement results.
+
+Measurement calculations remain in the backend, so the frontend does not duplicate the geospatial processing logic.
+
 ## Coordinate Reference System (CRS) Handling
 
 Geographic CRS values such as EPSG:4326 represent coordinates in degrees. Calculating area or distance directly from these coordinates would produce unsuitable measurement units.
@@ -250,6 +296,7 @@ Uploaded file contents are stored on the filesystem. SQLite stores the associate
 ## Design Decisions
 
 - **FastAPI:** Chosen to provide a lightweight REST API with automatic OpenAPI documentation and straightforward endpoint development.
+- **Streamlit instead of a JavaScript frontend:** Provides a simple Python-based interface without requiring a separate JavaScript framework. The frontend communicates with the backend through HTTP requests.
 - **SQLite instead of PostGIS:** SQLite keeps setup simple and avoids requiring a separate database server. PostGIS would be more suitable if the application needed advanced spatial queries or larger-scale spatial data management.
 - **SQLAlchemy:** Provides database models and query operations without requiring raw SQL for every database interaction.
 - **GeoPandas, Shapely, and PyProj:** Handle geospatial file reading, geometry operations, CRS transformations, and measurements.
@@ -282,8 +329,9 @@ The tests cover:
 - Introduce background processing for large uploads.
 - Add pagination for files containing many features.
 - Expand automated tests for missing CRS, empty files, malformed archives, and additional geometry types.
+- Make the backend URL configurable for different deployment environments.
 - Consider a spatial database such as PostGIS if advanced spatial queries become necessary.
 
 ## Learning Outcomes
 
-This project provided practical experience with REST API development, file validation, geospatial data processing, CRS transformations, database persistence, error handling, and automated testing.
+This project provided practical experience with REST API development, file validation, geospatial data processing, CRS transformations, database persistence, frontend-backend communication, error handling, and automated testing.
