@@ -1,0 +1,32 @@
+
+#created by pytest
+# Virtual environment
+.venv/
+
+# Python generated files
+__pycache__/
+*.py[cod]
+
+# Pytest
+.pytest_cache/
+
+# Local database
+geospatial.db
+*.db
+
+# Uploaded files
+uploads/
+
+# Environment variables and secrets
+.env
+.env.*
+
+# IDE settings
+.vscode/
+
+
+# Temporary manual testing files
+test.py
+test_shapefile/
+test_shapefile.zip
+invalid.kml
